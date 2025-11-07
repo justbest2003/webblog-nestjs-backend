@@ -63,8 +63,20 @@ export class ArticleController {
   }
 
   @Get()
-  async getArticles(@Query() query: any): Promise<IArticlesResponse> {
-    return this.articleService.findAll(query);
+  async findAll(
+    @User('id') currentUserId: number,
+    @Query() query: any,
+  ): Promise<IArticlesResponse> {
+    return await this.articleService.findAll(currentUserId, query);
+  }
+
+  @Get('feed')
+  @UseGuards(AuthGuard)
+  async getUserFeed(
+    @User('id') currentUserId: number,
+    @Query() query: any,
+  ): Promise<IArticlesResponse> {
+    return await this.articleService.getFeed(currentUserId, query);
   }
 
   @Post(':slug/favorite')

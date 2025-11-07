@@ -7,9 +7,10 @@ import ormconfig from './config/ormconfig';
 import { UserModule } from './user/user.module';
 import { ConfigModule } from '@nestjs/config';
 import { ArticleModule } from './article/article.module';
+import { ProfileModule } from './profile/profile.module';
 
 @Module({
-  imports: [TypeOrmModule.forRoot(ormconfig), ConfigModule.forRoot({ isGlobal: true }), TagModule, UserModule, ArticleModule],
+  imports: [TypeOrmModule.forRoot(ormconfig), ConfigModule.forRoot({ isGlobal: true }), TagModule, UserModule, ArticleModule, ProfileModule],
   controllers: [AppController],
   providers: [AppService],
 })

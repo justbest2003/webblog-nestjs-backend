@@ -11,7 +11,7 @@ export class UserEntity {
     username: string;
 
     @Column()
-    email: string;
+    email?: string;
     
     @Column({ default: '' })
     bio: string;

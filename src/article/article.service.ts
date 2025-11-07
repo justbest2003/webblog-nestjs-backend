@@ -8,7 +8,8 @@ import slugify from 'slugify';
 import { IArticleResponse } from './types/articleResponse.interface';
 import { UpdateArticleDto } from './dto/updateArticle.dto';
 import { IArticlesResponse } from './types/articlesResponse.interface';
-import { UserService } from '../user/user.service';
+import { FollowEntity } from '../profile/follow.entity';
+
 
 @Injectable()
 export class ArticleService {
@@ -17,34 +18,53 @@ export class ArticleService {
     private readonly articleRepository: Repository<ArticleEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
+    @InjectRepository(FollowEntity)
+    private readonly followRepository: Repository<FollowEntity>,
   ) {}
 
   // get articles
-  async findAll(query: any): Promise<IArticlesResponse> {
+  async findAll(currentUserId: number, query: any): Promise<IArticlesResponse> {
     const queryBuilder = this.articleRepository
       .createQueryBuilder('articles')
       .leftJoinAndSelect('articles.author', 'author');
 
     if (query.tag) {
       queryBuilder.andWhere('articles.tagList LIKE :tag', {
-        tag: `%${query.tag}%`,
+        tag: `%${query.tag}`,
       });
     }
 
     if (query.author) {
-      // 1. ค้นหา ID ของผู้เขียนก่อน
       const author = await this.userRepository.findOne({
-        where: { username: query.author },
+        where: {
+          username: query.author,
+        },
       });
-      // 2. ถ้าหาผู้เขียนคนนั้นเจอ
+
       if (author) {
         queryBuilder.andWhere('articles.authorId = :id', {
           id: author?.id,
         });
       } else {
-        // 3. ถ้าหาไม่เจอ (เช่น พิมพ์ชื่อผิด)
         return { articles: [], articlesCount: 0 };
       }
+    }
+
+    if (query.favorited) {
+      const author = await this.userRepository.findOne({
+        where: {
+          username: query.favorited,
+        },
+        relations: ['favorites'],
+      });
+
+      if (!author || author.favorites.length === 0) {
+        return { articles: [], articlesCount: 0 };
+      }
+
+      const favoritesIds = author?.favorites.map((articles) => articles.id);
+
+      queryBuilder.andWhere('articles.id IN (:...ids)', { ids: favoritesIds });
     }
 
     queryBuilder.orderBy('articles.createdAt', 'DESC');
@@ -61,8 +81,65 @@ export class ArticleService {
 
     const articles = await queryBuilder.getMany();
 
+    let userFavoritesIds: number[] = [];
+
+    if (currentUserId) {
+      const currentUser = await this.userRepository.findOne({
+        where: {
+          id: currentUserId,
+        },
+        relations: ['favorites'],
+      });
+
+      userFavoritesIds = currentUser
+        ? currentUser.favorites.map((article) => article.id)
+        : [];
+    }
+
+    const articlesWithFavorited = articles.map((article) => {
+      const favorited = userFavoritesIds.includes(article.id);
+      return { ...article, favorited };
+    });
+
+    return { articles: articlesWithFavorited, articlesCount };
+  }
+
+  async getFeed(currentUserId: number, query: any): Promise<IArticlesResponse> {
+    const follows = await this.followRepository.find({
+      where: {
+        followerId: currentUserId,
+      },
+    });
+
+    const followingIds = follows.map((user) => user.followingId);
+
+    if (!follows.length) {
+      return { articles: [], articlesCount: 0 };
+    }
+
+    const queryBuilder = this.articleRepository
+      .createQueryBuilder('articles')
+      .leftJoinAndSelect('articles.author', 'author');
+
+    queryBuilder.andWhere('articles.authorId IN (:...followingIds)', {
+      followingIds,
+    });
+
+    const articlesCount = await queryBuilder.getCount();
+
+    if (query.offset) {
+      queryBuilder.offset(query.offset);
+    }
+
+    if (query.limit) {
+      queryBuilder.limit(query.limit);
+    }
+
+    const articles = await queryBuilder.getMany();
+
     return { articles, articlesCount };
   }
+  
 
   // create article
   async createArticle(

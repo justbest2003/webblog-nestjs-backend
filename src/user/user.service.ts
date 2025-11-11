@@ -18,17 +18,25 @@ export class UserService {
     const newUser = new UserEntity();
     Object.assign(newUser, createUserDto);
 
-    // check if email or username is already in use
-    const UserAndEmailExist = await this.userRepository.findOne({
+    const userByEmail = await this.userRepository.findOne({
       where: {
         email: createUserDto.email,
+      },
+    });
+
+    const userByUsername = await this.userRepository.findOne({
+      where: {
         username: createUserDto.username,
       },
     });
-    if (UserAndEmailExist) {
-      throw new HttpException('Email or username already exists', HttpStatus.UNPROCESSABLE_ENTITY);
+
+    if (userByEmail || userByUsername) {
+      throw new HttpException(
+        'Email or username is already taken',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
     }
-    
+
     const savedUser = await this.userRepository.save(newUser);
     return this.generateUserResponse(savedUser);
   }

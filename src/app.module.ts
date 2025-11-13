@@ -25,7 +25,7 @@ import { ProfileModule } from './profile/profile.module';
       useFactory: async (configService: ConfigService) => ({
         ...(await configService.get('database')),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: true, // Production ปิด
+        synchronize: true, // Production = false
       }),
     }),
     TagModule,
